@@ -12,9 +12,23 @@
      
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+   * Copyright (c) 2010, Motorola, Inc,
+   *
+   * All Rights Reserved.
+   *
+   *
 */
 
 #include "dnsmasq.h"
+
+// BEGIN Motorola, dpn473, 07/19/2010 IKSTABLEONE-1514, pullin shadow CR IKShadow-7395
+#ifdef __ANDROID__
+#include <linux/capability.h>
+#include <linux/prctl.h>
+#include <private/android_filesystem_config.h>
+#endif
+// END IKSTABLEONE-1514
 
 struct daemon *daemon;
 
@@ -566,6 +580,8 @@ int main (int argc, char **argv)
     check_servers();
   
   pid = getpid();
+
+  os_program_init();
   
   while (1)
     {
@@ -1337,4 +1353,29 @@ int icmp_ping(struct in_addr addr)
 }
 #endif
 
- 
+// BEGIN Motorola, dpn473, 07/19/2010 IKSTABLEONE-1514, pullin shadow CR IKShadow-7395
+void os_program_init(void)
+{
+#ifdef __ANDROID__
+    /* We ignore errors here since errors are normal if we
+     * are already running as non-root.
+     */
+    gid_t groups[] = { AID_INET, AID_WIFI, AID_KEYSTORE };
+    setgroups(sizeof(groups)/sizeof(groups[0]), groups);
+
+    prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+
+    setgid(AID_WIFI);
+    setuid(AID_WIFI);
+
+    struct __user_cap_header_struct header;
+    struct __user_cap_data_struct cap;
+    header.version = _LINUX_CAPABILITY_VERSION;
+    header.pid = 0;
+    cap.effective = cap.permitted =
+        (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW);
+    cap.inheritable = 0;
+    capset(&header, &cap);
+#endif
+}
+// END IKSTABLEONE-1514
