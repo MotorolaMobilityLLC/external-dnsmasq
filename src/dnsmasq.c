@@ -64,10 +64,14 @@ static void sig_handler(int sig);
 static void async_event(int pipe, time_t now);
 static void fatal_event(struct event_desc *ev);
 static void poll_resolv(void);
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
+#if 0
 #ifdef __ANDROID__
 static int set_android_listeners(fd_set *set, int *maxfdp);
 static int check_android_listeners(fd_set *set);
 #endif
+#endif
+//END IKSTABLEONE-1659
 
 int main (int argc, char **argv)
 {
@@ -282,9 +286,11 @@ int main (int argc, char **argv)
   
   if (!(daemon->options & OPT_DEBUG))   
     {
-#ifndef __ANDROID__
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
+//#ifndef __ANDROID__
       int nullfd;
-#endif
+//#endif
+//END IKSTABLEONE-1659
 
       /* The following code "daemonizes" the process. 
 	 See Stevens section 12.4 */
@@ -351,14 +357,16 @@ int main (int argc, char **argv)
 	    }
 	}
 
-#ifndef __ANDROID__
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
+//#ifndef __ANDROID__
       /* open  stdout etc to /dev/null */
       nullfd = open("/dev/null", O_RDWR);
       dup2(nullfd, STDOUT_FILENO);
       dup2(nullfd, STDERR_FILENO);
       dup2(nullfd, STDIN_FILENO);
       close(nullfd);
-#endif
+//#endif
+//END IKSTABLEONE-1659
     }
   
    log_err = log_start(ent_pw, err_pipe[1]); 
@@ -585,9 +593,11 @@ int main (int argc, char **argv)
 	  t.tv_usec = 0;
 	  tp = &t;
 	}
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
 #ifdef __ANDROID__
-      set_android_listeners(&rset, &maxfd);
+      //set_android_listeners(&rset, &maxfd);
 #endif
+//END IKSTABLEONE-1659
 
       /* Whilst polling for the dbus, or doing a tftp transfer, wake every quarter second */
       if (daemon->tftp_trans ||
@@ -680,9 +690,11 @@ int main (int argc, char **argv)
       check_dbus_listeners(&rset, &wset, &eset);
 #endif
 
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
 #ifdef __ANDROID__
-      check_android_listeners(&rset);
+      //check_android_listeners(&rset);
 #endif
+//END IKSTABLEONE-1659
       
       check_dns_listeners(&rset, now);
 
@@ -975,6 +987,8 @@ void clear_cache_and_reload(time_t now)
 #endif
 }
 
+//BEGIN Motorola, a19110, 07/19/10, IKSTABLEONE-1659
+#if 0
 #ifdef __ANDROID__
 
 static int set_android_listeners(fd_set *set, int *maxfdp) {
@@ -1012,6 +1026,8 @@ static int check_android_listeners(fd_set *set) {
     return 0;
 }
 #endif
+#endif
+//END IKSTABLEONE-1659
 
 static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp)
 {
