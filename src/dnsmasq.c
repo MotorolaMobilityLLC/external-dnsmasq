@@ -1013,7 +1013,6 @@ static int check_android_listeners(fd_set *set) {
             set_servers(&buffer[11]);
             check_servers();
         } else {
-            my_syslog(LOG_ERR, _("Unknown cmd '%s'"), cmd);
             return -1;
         }
     }
