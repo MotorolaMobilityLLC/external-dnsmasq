@@ -12,9 +12,16 @@
      
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+   * Copyright (c) 2010, Motorola, Inc,
+   *
+   * All Rights Reserved.
+   *
+   *
 */
 
 #include "dnsmasq.h"
+
 
 struct daemon *daemon;
 
@@ -566,6 +573,7 @@ int main (int argc, char **argv)
     check_servers();
   
   pid = getpid();
+
   
   while (1)
     {
@@ -1005,7 +1013,6 @@ static int check_android_listeners(fd_set *set) {
             set_servers(&buffer[11]);
             check_servers();
         } else {
-            my_syslog(LOG_ERR, _("Unknown cmd '%s'"), cmd);
             return -1;
         }
     }
@@ -1337,4 +1344,3 @@ int icmp_ping(struct in_addr addr)
 }
 #endif
 
- 
