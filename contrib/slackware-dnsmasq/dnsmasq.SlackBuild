@@ -24,7 +24,7 @@ tar xzvf $CWD/dnsmasq-$VERSION.tar.gz
 cd dnsmasq-$VERSION
 zcat $CWD/dnsmasq.leasedir.diff.gz | patch -p1 --verbose --backup --suffix=.orig || exit
 chown -R root.root .
-make install-i18n PREFIX=/usr DESTDIR=$PKG MANDIR=/usr/man
+$(MAKE) install-i18n PREFIX=/usr DESTDIR=$PKG MANDIR=/usr/man
 chmod 755 $PKG/usr/sbin/dnsmasq
 chown -R root.bin $PKG/usr/sbin
 gzip -9 $PKG/usr/man/man8/dnsmasq.8
