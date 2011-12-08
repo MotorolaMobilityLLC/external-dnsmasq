@@ -43,7 +43,7 @@ patch -p0 <rpm/%{name}-SuSE.patch
 
 %build
 %{?suse_update_config:%{suse_update_config -f}}
-make all-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
+$(MAKE) all-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
 
 ###############################################################################
 #
@@ -54,7 +54,7 @@ make all-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
 %install
 rm -rf $RPM_BUILD_ROOT
 mkdir -p ${RPM_BUILD_ROOT}/etc/init.d
-make install-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
+$(MAKE) install-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
 install -o root -g root -m 755 rpm/rc.dnsmasq-suse $RPM_BUILD_ROOT/etc/init.d/dnsmasq
 install -o root -g root -m 644 dnsmasq.conf.example $RPM_BUILD_ROOT/etc/dnsmasq.conf
 strip $RPM_BUILD_ROOT/usr/sbin/dnsmasq
