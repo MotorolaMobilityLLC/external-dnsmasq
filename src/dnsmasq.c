@@ -763,6 +763,9 @@ static void fatal_event(struct event_desc *ev)
 {
   errno = ev->data;
   
+  //BEGIN,Motorola, w20079, 09/13/2011, IKSTABLE6-12604
+  my_syslog(LOG_WARNING, _("enter fatal_event %d"), ev->event);
+  //END, IKSTABLE6-12604
   switch (ev->event)
     {
     case EVENT_DIE:
@@ -791,6 +794,11 @@ static void fatal_event(struct event_desc *ev)
 
     case EVENT_LOG_ERR:
       die(_("cannot open %s: %s"), daemon->log_file ? daemon->log_file : "log", EC_FILE);
+
+    //BEGIN,Motorola, w20079, 09/13/2011, IKSTABLE6-12604
+    case EVENT_TERM:
+      die(_("unable to deliver SIG_TERM"), NULL, EC_MISC);
+    //END, IKSTABLE6-12604
     }
 }	
       
@@ -984,32 +992,40 @@ static int set_android_listeners(fd_set *set, int *maxfdp) {
 }
 
 static int check_android_listeners(fd_set *set) {
+    int retcode = 0;
     if (FD_ISSET(STDIN_FILENO, set)) {
         char buffer[1024];
         int rc;
+        int consumed = 0;
 
         if ((rc = read(STDIN_FILENO, buffer, sizeof(buffer) -1)) < 0) {
             my_syslog(LOG_ERR, _("Error reading from stdin (%s)"), strerror(errno));
             return -1;
         }
         buffer[rc] = '\0';
-        char *next = buffer;
-        char *cmd;
+        while(consumed < rc) {
+            char *cmd;
+            char *current_cmd = &buffer[consumed];
+            char *params = current_cmd;
+            int len = strlen(current_cmd);
 
-        if (!(cmd = strsep(&next, ":"))) {
-            my_syslog(LOG_ERR, _("Malformatted msg '%s'"), buffer);
-            return -1;
-        }
-
-        if (!strcmp(buffer, "update_dns")) {
-            set_servers(&buffer[11]);
-            check_servers();
-        } else {
-            my_syslog(LOG_ERR, _("Unknown cmd '%s'"), cmd);
-            return -1;
+            cmd = strsep(&params, ":");
+            if (!strcmp(cmd, "update_dns")) {
+                if (params != NULL) {
+                    set_servers(params);
+                    check_servers();
+                } else {
+                    my_syslog(LOG_ERR, _("Malformatted msg '%s'"), current_cmd);
+                    retcode = -1;
+                }
+            } else {
+                 my_syslog(LOG_ERR, _("Unknown cmd '%s'"), cmd);
+                 retcode = -1;
+            }
+            consumed += len + 1;
         }
     }
-    return 0;
+    return retcode;
 }
 #endif
 
