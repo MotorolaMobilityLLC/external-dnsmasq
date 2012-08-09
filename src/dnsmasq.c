@@ -769,6 +769,9 @@ static void fatal_event(struct event_desc *ev)
 {
   errno = ev->data;
   
+  //BEGIN,Motorola, w20079, 09/13/2011, IKSTABLE6-12604
+  my_syslog(LOG_WARNING, _("enter fatal_event %d"), ev->event);
+  //END, IKSTABLE6-12604
   switch (ev->event)
     {
     case EVENT_DIE:
@@ -797,6 +800,11 @@ static void fatal_event(struct event_desc *ev)
 
     case EVENT_LOG_ERR:
       die(_("cannot open %s: %s"), daemon->log_file ? daemon->log_file : "log", EC_FILE);
+
+    //BEGIN,Motorola, w20079, 09/13/2011, IKSTABLE6-12604
+    case EVENT_TERM:
+      die(_("unable to deliver SIG_TERM"), NULL, EC_MISC);
+    //END, IKSTABLE6-12604
     }
 }	
       
