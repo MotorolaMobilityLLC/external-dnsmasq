@@ -408,13 +408,7 @@ void create_bound_listener(struct listener **listeners, struct irec *iface)
 
   struct listener *new = safe_malloc(sizeof(struct listener));
   new->family = iface->addr.sa.sa_family;
-  /*BEGIN,moto,e7976c,10/23/2013,IKXREL1KK-1220
-  the iface is from daemon->interfaces, but that link will be flushed every set_interfaces(),
-  then, the listener->iface memory will be free, the data will be destroyed. */
-  struct irec *newIface = safe_malloc(sizeof(struct irec));
-  memcpy((void*)newIface, (void*)iface, sizeof(struct irec));
-  new->iface = newIface;
-  /*END, IKXREL1KK-1220*/
+  new->iface = iface;
   new->next = *listeners;
   new->tftpfd = -1;
   new->tcpfd = -1;
@@ -529,7 +523,6 @@ int close_bound_listener(struct irec *interface)
     listener->fd = -1;
   }
   *l = listener->next;
-  free(listener->iface);/*Moto,e7976c,10/23/2013,IKXREL1KK-1220*/
   free(listener);
   return -1;
 }
