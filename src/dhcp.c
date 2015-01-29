@@ -58,6 +58,11 @@ void dhcp_init(void)
     {
 #ifdef SO_REUSEPORT
       int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &oneopt, sizeof(oneopt));
+      /* if REUSEPORT fails and errno is ENOPROTOOPT then try again with
+       * REUSEADDR.
+       */
+      if ((rc == -1) && (errno == ENOPROTOOPT))
+         rc = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &oneopt, sizeof(oneopt));
 #else
       int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &oneopt, sizeof(oneopt));
 #endif
