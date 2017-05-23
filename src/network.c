@@ -369,7 +369,24 @@ struct listener *create_wildcard_listeners(void)
 #endif 
 	  bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
 	return NULL;
+
+#ifdef __ANDROID__
+      uint32_t mark = daemon->listen_mark;
+      if (mark != 0 &&
+	  (setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1 ||
+	   setsockopt(tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1 ||
+	   setsockopt(l6->fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1 ||
+	   setsockopt(l6->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1))
+      {
+	my_syslog(LOG_WARNING, _("setsockopt(SO_MARK, 0x%x: %s"), mark, strerror(errno));
+	close(fd);
+	close(tcpfd);
+	close(l6->fd);
+	close(l6->tcpfd);
+	return NULL;
+      }
     }
+#endif /* __ANDROID__ */
   
 #ifdef HAVE_TFTP
   if (daemon->options & OPT_TFTP)
@@ -475,6 +492,12 @@ void create_bound_listener(struct listener **listeners, struct irec *iface)
       prettyprint_addr(&iface->addr, daemon->namebuff);
       die(_("failed to bind listening socket for %s: %s"), daemon->namebuff, EC_BADNET);
     }
+
+    uint32_t mark = daemon->listen_mark;
+    if (mark != 0 &&
+	(setsockopt(new->fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1 ||
+	 setsockopt(new->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1))
+      die(_("failed to set SO_MARK on listen socket: %s"), NULL, EC_BADNET);
 
     if (listen(new->tcpfd, 5) == -1)
       die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
