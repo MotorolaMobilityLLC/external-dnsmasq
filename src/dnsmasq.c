@@ -69,6 +69,20 @@ static int set_android_listeners(fd_set *set, int *maxfdp);
 static int check_android_listeners(fd_set *set);
 #endif
 
+#define READ_PIPE 0
+#define WRITE_PIPE 1
+static void get_file_path(int fd, int dir_value)
+{
+  char fd_buf[PATH_MAX] = {0};
+  char file_path[PATH_MAX] = {0};
+  char *dir_string = dir_value ? "write" : "read";
+  snprintf(fd_buf, PATH_MAX, "/dev/fd/%d", fd);
+  if(readlink(fd_buf, file_path, PATH_MAX) > 0)
+    my_syslog(LOG_INFO, _("%spipe %d, pipepath %s\n"), dir_string, fd, file_path);
+  else
+    my_syslog(LOG_INFO, _("%spipe %d, pipe path failed to get\n"), dir_string, fd);
+}
+
 int main (int argc, char **argv)
 {
   int bind_fallback = 0;
@@ -88,7 +102,7 @@ int main (int argc, char **argv)
 #if defined(HAVE_LINUX_NETWORK)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
-#endif 
+#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -275,6 +289,13 @@ int main (int argc, char **argv)
   
   piperead = pipefd[0];
   pipewrite = pipefd[1];
+
+  {/*mtk10127 debug pipe issue*/
+  my_syslog(LOG_INFO, _("create pipe: piperead %d, pipewrite %d\n"), piperead, pipewrite);
+  get_file_path(piperead, READ_PIPE);
+  get_file_path(pipewrite, WRITE_PIPE);
+  }
+
   /* prime the pipe to load stuff first time. */
   send_event(pipewrite, EVENT_RELOAD, 0); 
 
@@ -759,10 +780,13 @@ void send_event(int fd, int event, int data)
   /* error pipe, debug mode. */
   if (fd == -1)
     fatal_event(&ev);
-  else
+  else {
+    /*mtk10127 debug pipe issue*/
+    get_file_path(fd, WRITE_PIPE);
     /* pipe is non-blocking and struct event_desc is smaller than
        PIPE_BUF, so this either fails or writes everything */
     while (write(fd, &ev, sizeof(ev)) == -1 && errno == EINTR);
+  }
 }
 
 static void fatal_event(struct event_desc *ev)
@@ -805,6 +829,9 @@ static void async_event(int pipe, time_t now)
   pid_t p;
   struct event_desc ev;
   int i;
+
+  /*mtk10127 debug pipe issue*/
+  get_file_path(pipe, READ_PIPE);
 
   if (read_write(pipe, (unsigned char *)&ev, sizeof(ev), 1))
     switch (ev.event)
