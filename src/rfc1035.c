@@ -1144,7 +1144,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
   struct mx_srv_record *rec;
 
   // Make sure we do not underflow here too.
-  if (qlen > (limit - ((char *)header))) return 0;
+  if (qlen > (size_t)(limit - ((char *)header))) return 0;
  
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
