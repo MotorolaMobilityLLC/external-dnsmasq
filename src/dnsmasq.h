@@ -321,6 +321,7 @@ struct serverfd {
   union mysockaddr source_addr;
   char interface[IF_NAMESIZE+1];
   struct serverfd *next;
+  uint32_t mark;
 };
 
 struct randfd {
@@ -335,6 +336,7 @@ struct server {
   char *domain; /* set if this server only handles a domain. */ 
   int flags, tcpfd;
   unsigned int queries, failed_queries;
+  uint32_t mark;
   struct server *next; 
 };
 
@@ -740,8 +742,9 @@ int hostname_isequal(char *a, char *b);
 time_t dnsmasq_time(void);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 int retry_send(void);
+int parse_addr(int family, const char *addrstr, union mysockaddr *addr);
 void prettyprint_time(char *buf, unsigned int t);
-int prettyprint_addr(union mysockaddr *addr, char *buf);
+int prettyprint_addr(const union mysockaddr *addr, char *buf);
 int parse_hex(char *in, unsigned char *out, int maxlen, 
 	      unsigned int *wildcard_mask, int *mac_type);
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, 
@@ -775,11 +778,11 @@ struct frec *get_new_frec(time_t now, int *wait);
 
 /* network.c */
 int indextoname(int fd, int index, char *name);
-int local_bind(int fd, union mysockaddr *addr, char *intname, int is_tcp);
+int local_bind(int fd, union mysockaddr *addr, char *intname, uint32_t mark, int is_tcp);
 int random_sock(int family);
 void pre_allocate_sfds(void);
 int reload_servers(char *fname);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(__BRILLO__)
 int set_servers(const char *servers);
 void set_interfaces(const char *interfaces);
 #endif

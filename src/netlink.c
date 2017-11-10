@@ -1,3 +1,8 @@
+/*
+* Copyright (C) 2014 MediaTek Inc.
+* Modification based on code covered by the mentioned copyright
+* and/or permission notice(s).
+*/
 /* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
@@ -207,9 +212,21 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)())
 		    rta = RTA_NEXT(rta, len1);
 		  }
 		
+#if 0
 		if (addr.s_addr && ipv4_callback)
 		  if (!((*ipv4_callback)(addr, ifa->ifa_index, netmask, broadcast, parm)))
 		    return 0;
+#endif
+		if (addr.s_addr && ipv4_callback){
+		    if (!((*ipv4_callback)(addr, ifa->ifa_index, netmask, broadcast, parm))){
+		        if (errno == ENODEV){
+		        	my_syslog(LOG_WARNING, _("iface_enumerate, if_index(%d) removed!!"),ifa->ifa_index);
+	            	sleep(1);
+	          		goto again;
+	      		}
+		    	return 0;
+			}
+		}
 	      }
 #ifdef HAVE_IPV6
 	    else if (ifa->ifa_family == AF_INET6)

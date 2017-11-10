@@ -1,3 +1,8 @@
+/*
+* Copyright (C) 2014 MediaTek Inc.
+* Modification based on code covered by the mentioned copyright
+* and/or permission notice(s).
+*/
 /* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
@@ -20,6 +25,7 @@
 
 static struct dhcp_lease *leases = NULL, *old_leases = NULL;
 static int dns_dirty, file_dirty, leases_left;
+static int update_p2p0_lease(struct dhcp_lease *lease);
 
 void lease_init(time_t now)
 {
@@ -210,6 +216,11 @@ void lease_update_file(time_t now)
 	    }
 	  else
 	    ourprintf(&err, "*\n");	  
+	  
+#ifdef DNSMASQ_MTK_CHANGES
+	 update_p2p0_lease(lease);
+#endif
+
 	}
       
       if (fflush(daemon->lease_stream) != 0 ||
@@ -614,6 +625,81 @@ int do_script_run(time_t now)
 
   return 0; /* nothing to do */
 }
+
+#ifdef DNSMASQ_MTK_CHANGES
+static void p2p0printf(FILE *fp, int *errp, char *format, ...)
+{
+  va_list ap;
+  
+  va_start(ap, format);
+  if (!(*errp) && vfprintf(fp, format, ap) < 0)
+    *errp = errno;
+  va_end(ap);
+}
+
+/*save p2p0 lease separately, return -1 for error, return 0 if success*/
+static int update_p2p0_lease(struct dhcp_lease *lease)
+{
+    struct ifreq ifr;
+	int i, err = 0;
+    FILE *p2p0_fp = NULL;
+	const char *p2p0_lease_file = "/data/misc/dhcp/dnsmasq.p2p0.leases";
+
+    my_syslog(LOG_INFO, _("update_p2p0_lease enter "));
+	
+    if (!indextoname(daemon->dhcpfd, lease->last_interface, ifr.ifr_name)){
+        my_syslog(LOG_INFO, _("indextoname error. index:%d"), lease->last_interface);
+		return -1;
+	}
+    my_syslog(LOG_INFO, _("ifr.ifr_name = %s"), ifr.ifr_name);
+	if(strcmp(ifr.ifr_name, "p2p0")){
+		my_syslog(LOG_INFO, _("return -1"));
+		return -1;
+	}
+	my_syslog(LOG_INFO, _("fopen ++"));
+	p2p0_fp = fopen(p2p0_lease_file, "a+");
+	my_syslog(LOG_INFO, _("fopen --: p2p0_fp = %p; errno = %d"), p2p0_fp, errno);
+    if (!p2p0_fp) {
+	     die(_("cannot open or create p2p0 lease file %s: %s"), p2p0_lease_file, EC_FILE);
+    }
+      
+    /* a+ mode leaves pointer at end. */
+    rewind(p2p0_fp);
+	
+#ifdef HAVE_BROKEN_RTC
+	p2p0printf(p2p0_fp, &err, "%u ", lease->length);
+#else
+	p2p0printf(p2p0_fp, &err, "%lu ", (unsigned long)lease->expires);
+#endif
+	if (lease->hwaddr_type != ARPHRD_ETHER || lease->hwaddr_len == 0) 
+		p2p0printf(p2p0_fp, &err, "%.2x-", lease->hwaddr_type);
+	for (i = 0; i < lease->hwaddr_len; i++){
+	    p2p0printf(p2p0_fp, &err, "%.2x", lease->hwaddr[i]);
+		if (i != lease->hwaddr_len - 1)
+			p2p0printf(p2p0_fp, &err, ":");
+	}
+	
+	p2p0printf(p2p0_fp, &err, " %s ", inet_ntoa(lease->addr));
+	p2p0printf(p2p0_fp, &err, "%s ", lease->hostname ? lease->hostname : "*");
+			  
+	if (lease->clid && lease->clid_len != 0){
+		for (i = 0; i < lease->clid_len - 1; i++)
+		p2p0printf(p2p0_fp, &err, "%.2x:", lease->clid[i]);
+		p2p0printf(p2p0_fp, &err, "%.2x\n", lease->clid[i]);
+	}else
+		p2p0printf(p2p0_fp, &err, "*\n"); 
+		  
+	if (fflush(p2p0_fp) != 0 ||
+			    fsync(fileno(p2p0_fp)) < 0)
+		err = errno;
+
+    if(err)
+        my_syslog(LOG_INFO, _("write p2p0 lease file err: %d(%s)"), err, strerror(errno));		
+    my_syslog(LOG_INFO, _("update_p2p0_lease return %d"), err);
+    fclose(p2p0_fp);
+    return err;
+}
+#endif
 
 #endif
 	  
