@@ -1,3 +1,8 @@
+/*
+* Copyright (C) 2014 MediaTek Inc.
+* Modification based on code covered by the mentioned copyright
+* and/or permission notice(s).
+*/
 /* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
@@ -15,6 +20,15 @@
 */
 
 #include "dnsmasq.h"
+
+#include <private/android_filesystem_config.h>
+#include <linux/capability.h>
+#include <fcntl.h>
+#include <sys/prctl.h>
+
+#ifdef MTK_VZW_CHIPTEST_MODE_SUPPORT_TEST
+#include <cutils/properties.h>
+#endif
 
 struct daemon *daemon;
 
@@ -64,10 +78,12 @@ static void sig_handler(int sig);
 static void async_event(int pipe, time_t now);
 static void fatal_event(struct event_desc *ev);
 static void poll_resolv(void);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(__BRILLO__)
 static int set_android_listeners(fd_set *set, int *maxfdp);
 static int check_android_listeners(fd_set *set);
 #endif
+
+static void set_cap_dhcpAdmin(void);
 
 int main (int argc, char **argv)
 {
@@ -89,6 +105,8 @@ int main (int argc, char **argv)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
 #endif 
+
+  set_cap_dhcpAdmin();
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -282,7 +300,7 @@ int main (int argc, char **argv)
   
   if (!(daemon->options & OPT_DEBUG))   
     {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) || defined(__BRILLO__)
       int nullfd;
 #endif
 
@@ -351,7 +369,7 @@ int main (int argc, char **argv)
 	    }
 	}
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) || defined(__BRILLO__)
       /* open  stdout etc to /dev/null */
       nullfd = open("/dev/null", O_RDWR);
       dup2(nullfd, STDOUT_FILENO);
@@ -591,7 +609,7 @@ int main (int argc, char **argv)
 	  t.tv_usec = 0;
 	  tp = &t;
 	}
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(__BRILLO__)
       set_android_listeners(&rset, &maxfd);
 #endif
 
@@ -686,7 +704,7 @@ int main (int argc, char **argv)
       check_dbus_listeners(&rset, &wset, &eset);
 #endif
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(__BRILLO__)
       check_android_listeners(&rset);
 #endif
       
@@ -981,7 +999,7 @@ void clear_cache_and_reload(time_t now)
 #endif
 }
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(__BRILLO__)
 
 static int set_android_listeners(fd_set *set, int *maxfdp) {
     FD_SET(STDIN_FILENO, set);
@@ -1007,7 +1025,7 @@ static int check_android_listeners(fd_set *set) {
             char *params = current_cmd;
             int len = strlen(current_cmd);
 
-            cmd = strsep(&params, ":");
+            cmd = strsep(&params, "|");
             if (!strcmp(cmd, "update_dns")) {
                 if (params != NULL) {
                     set_servers(params);
@@ -1261,6 +1279,22 @@ int icmp_ping(struct in_addr addr)
      better not use any resources our caller has in use...)
      but we remain deaf to signals or further DHCP packets. */
 
+#ifdef MTK_VZW_CHIPTEST_MODE_SUPPORT_TEST
+        /* add by xiang*/
+    //IPPT mode need WAN IP assign to host PC ,so disable ping check
+    char prop_value[PROPERTY_VALUE_MAX] = {'\0'};
+    if (!property_get("persist.chiptest.enable", prop_value, NULL)) {
+        my_syslog(MS_DHCP | LOG_INFO,"get persist.chiptest.enable failed!");
+    }else {
+        if(1 == atoi(prop_value)) {
+            my_syslog(MS_DHCP | LOG_INFO, "get persist.chiptest.enable success,is dongle mode!");
+             return 0;
+        }else {
+            my_syslog(MS_DHCP | LOG_INFO,"get persist.chiptest.enable success, is not dongle mode!");
+        }
+    }
+#endif
+
   int fd;
   struct sockaddr_in saddr;
   struct { 
@@ -1357,3 +1391,47 @@ int icmp_ping(struct in_addr addr)
   return gotreply;
 }
 #endif
+
+static void 
+set_cap_dhcpAdmin(void) 
+{ 
+	struct __user_cap_header_struct header;
+	struct __user_cap_data_struct cap;
+	header.version = _LINUX_CAPABILITY_VERSION;
+	header.pid = 0;
+
+	gid_t groups[] = { AID_DHCP, AID_LOG, AID_INPUT, AID_INET, 
+                       AID_SYSTEM, AID_NET_RAW };
+    setgroups(sizeof(groups)/sizeof(groups[0]), groups);	
+	
+	prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+	
+    if(setgid(AID_DHCP) != 0)
+		my_syslog(LOG_ERR, _("setgid DHCP failed!"));
+    if(setuid(AID_DHCP) != 0)
+		my_syslog(LOG_ERR, _("setuid DHCP failed!"));
+        
+		if (capget(&header, &cap) < 0) {
+			my_syslog(LOG_ERR, _("Failed capget"));
+         return;
+     }
+     
+    
+	cap.effective |= (1 << CAP_NET_RAW |
+					1 << CAP_NET_ADMIN |
+					1 << CAP_NET_BIND_SERVICE |
+                    1 << CAP_SYS_BOOT);
+	
+	cap.permitted |=  (1 << CAP_NET_RAW |
+					1 << CAP_NET_ADMIN |
+					1 << CAP_NET_BIND_SERVICE |
+                    1 << CAP_SYS_BOOT) ;
+                    
+   if (capset(&header, &cap) < 0) {
+	   my_syslog(LOG_ERR, _("Failed capget"));
+         return;
+     }          
+   
+   //my_syslog(LOG_INFO, _("set cap net_admin exit"));
+                      	
+} 

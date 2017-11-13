@@ -1,3 +1,8 @@
+/*
+* Copyright (C) 2014 MediaTek Inc.
+* Modification based on code covered by the mentioned copyright
+* and/or permission notice(s).
+*/
 /* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
@@ -293,3 +298,8 @@ NOTES:
 #  undef HAVE_SCRIPT
 #endif
 
+#ifndef DNSMASQ_MTK_CHANGES
+#define DNSMASQ_MTK_CHANGES
+#endif
+
+#define DNS_SERVER_DECOLLATOR "|"

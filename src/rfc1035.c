@@ -48,7 +48,7 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
 	/* end marker */
 	{
 	  /* check that there are the correct no of bytes after the name */
-	  if (!CHECK_LEN(header, p, plen, extrabytes))
+	  if (!CHECK_LEN(header, p1 ? p1 : p, plen, extrabytes))
 	    return 0;
 	  
 	  if (isExtract)
@@ -240,6 +240,8 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
 	 left-over from the many DNS-for-IPv6 wars. We support all the formats
 	 that we can since there is no reason not to.
       */
+
+      /* TODO: does this make sense? */
 
       if (*name == '\\' && *(name+1) == '[' && 
 	  (*(name+2) == 'x' || *(name+2) == 'X'))
@@ -1140,6 +1142,9 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0;
   struct mx_srv_record *rec;
+
+ // Make sure we do not underflow here too.
+ if (qlen > (size_t)(limit - ((char *)header))) return 0;
  
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
