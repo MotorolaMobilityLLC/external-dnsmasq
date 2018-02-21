@@ -4,17 +4,30 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 dated June, 1991, or
    (at your option) version 3 dated 29 June, 2007.
- 
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-     
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
+
+#if defined(HAVE_BSD_NETWORK)
+#error Should not HAVE_BSD_NETWORK
+#endif
+
+#if defined(HAVE_SOLARIS_NETWORK)
+#error Should not HAVE_SOLARIS_NETWORK
+#endif
+
+#if !defined(HAVE_LINUX_NETWORK)
+#error Should HAVE_LINUX_NETWORK
+#endif
+
 
 struct daemon *daemon;
 
@@ -138,15 +151,10 @@ int main (int argc, char **argv)
     }
 #endif
 
-#ifdef HAVE_SOLARIS_NETWORK
-  if (daemon->max_logs != 0)
-    die(_("asychronous logging is not available under Solaris"), NULL, EC_BADCONF);
-#endif
-  
   rand_init();
-  
+
   now = dnsmasq_time();
-  
+
 #ifdef HAVE_DHCP
   if (daemon->dhcp)
     {
@@ -373,28 +381,8 @@ int main (int argc, char **argv)
 	  /* Tell kernel to not clear capabilities when dropping root */
 	  if (capset(hdr, data) == -1 || prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) == -1)
 	    bad_capabilities = errno;
-			  
-#elif defined(HAVE_SOLARIS_NETWORK)
-	  /* http://developers.sun.com/solaris/articles/program_privileges.html */
-	  priv_set_t *priv_set;
-	  
-	  if (!(priv_set = priv_str_to_set("basic", ",", NULL)) ||
-	      priv_addset(priv_set, PRIV_NET_ICMPACCESS) == -1 ||
-	      priv_addset(priv_set, PRIV_SYS_NET_CONFIG) == -1)
-	    bad_capabilities = errno;
 
-	  if (priv_set && bad_capabilities == 0)
-	    {
-	      priv_inverse(priv_set);
-	  
-	      if (setppriv(PRIV_OFF, PRIV_LIMIT, priv_set) == -1)
-		bad_capabilities = errno;
-	    }
-
-	  if (priv_set)
-	    priv_freeset(priv_set);
-
-#endif    
+#endif
 
 	  if (bad_capabilities != 0)
 	    {
@@ -1139,7 +1127,7 @@ int icmp_ping(struct in_addr addr)
   int gotreply = 0;
   time_t start, now;
 
-#if defined(HAVE_LINUX_NETWORK) || defined (HAVE_SOLARIS_NETWORK)
+#if defined(HAVE_LINUX_NETWORK)
   if ((fd = make_icmp_sock()) == -1)
     return 0;
 #else
@@ -1210,7 +1198,7 @@ int icmp_ping(struct in_addr addr)
 	}
     }
   
-#if defined(HAVE_LINUX_NETWORK) || defined(HAVE_SOLARIS_NETWORK)
+#if defined(HAVE_LINUX_NETWORK)
   close(fd);
 #else
   opt = 1;
