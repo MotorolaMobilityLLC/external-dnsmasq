@@ -63,9 +63,6 @@
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-#if defined(HAVE_SOLARIS_NETWORK)
-#include <sys/sockio.h>
-#endif
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -112,8 +109,6 @@ extern int capget(cap_user_header_t header, cap_user_data_t data);
 #define LINUX_CAPABILITY_VERSION_3  0x20080522
 
 #include <sys/prctl.h>
-#elif defined(HAVE_SOLARIS_NETWORK)
-#include <priv.h>
 #endif
 
 /* daemon is function in the C library.... */
@@ -644,11 +639,7 @@ extern struct daemon {
 
   /* DHCP state */
   int dhcpfd, helperfd; 
-#if defined(HAVE_LINUX_NETWORK)
   int netlinkfd;
-#elif defined(HAVE_BSD_NETWORK)
-  int dhcp_raw_fd, dhcp_icmp_fd;
-#endif
   struct iovec dhcp_packet;
   char *dhcp_buff, *dhcp_buff2;
   struct ping_result *ping_results;
@@ -831,13 +822,6 @@ void clear_cache_and_reload(time_t now);
 #ifdef HAVE_LINUX_NETWORK
 void netlink_init(void);
 void netlink_multicast(void);
-#endif
-
-/* bpf.c */
-#ifdef HAVE_BSD_NETWORK
-void init_bpf(void);
-void send_via_bpf(struct dhcp_packet *mess, size_t len,
-		  struct in_addr iface_addr, struct ifreq *ifr);
 #endif
 
 /* bpf.c or netlink.c */

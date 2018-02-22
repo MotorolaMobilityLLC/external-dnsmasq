@@ -23,35 +23,6 @@ static volatile int mem_recover = 0;
 static jmp_buf mem_jmp;
 static void one_file(char *file, int nest, int hard_opt);
 
-/* Solaris headers don't have facility names. */
-#ifdef HAVE_SOLARIS_NETWORK
-static const struct {
-  char *c_name;
-  unsigned int c_val;
-}  facilitynames[] = {
-  { "kern",   LOG_KERN },
-  { "user",   LOG_USER },
-  { "mail",   LOG_MAIL },
-  { "daemon", LOG_DAEMON },
-  { "auth",   LOG_AUTH },
-  { "syslog", LOG_SYSLOG },
-  { "lpr",    LOG_LPR },
-  { "news",   LOG_NEWS },
-  { "uucp",   LOG_UUCP },
-  { "audit",  LOG_AUDIT },
-  { "cron",   LOG_CRON },
-  { "local0", LOG_LOCAL0 },
-  { "local1", LOG_LOCAL1 },
-  { "local2", LOG_LOCAL2 },
-  { "local3", LOG_LOCAL3 },
-  { "local4", LOG_LOCAL4 },
-  { "local5", LOG_LOCAL5 },
-  { "local6", LOG_LOCAL6 },
-  { "local7", LOG_LOCAL7 },
-  { NULL, 0 }
-};
-#endif
-
 #ifndef HAVE_GETOPT_LONG
 struct myoption {
   const char *name;
