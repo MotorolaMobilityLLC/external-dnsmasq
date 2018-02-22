@@ -83,24 +83,9 @@ void dhcp_init(void)
 
   daemon->dhcpfd = fd;
 
-#if defined(HAVE_BSD_NETWORK)
-  /* When we're not using capabilities, we need to do this here before
-     we drop root. Also, set buffer size small, to avoid wasting
-     kernel buffers */
-  
-  if (daemon->options & OPT_NO_PING)
-    daemon->dhcp_icmp_fd = -1;
-  else if ((daemon->dhcp_icmp_fd = make_icmp_sock()) == -1 ||
-	   setsockopt(daemon->dhcp_icmp_fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1 )
-    die(_("cannot create ICMP raw socket: %s."), NULL, EC_BADNET);
-  
-  /* Make BPF raw send socket */
-  init_bpf();
-#endif
-  
   check_dhcp_hosts(1);
-    
-  daemon->dhcp_packet.iov_len = sizeof(struct dhcp_packet); 
+
+  daemon->dhcp_packet.iov_len = sizeof(struct dhcp_packet);
   daemon->dhcp_packet.iov_base = safe_malloc(daemon->dhcp_packet.iov_len);
 }
   
@@ -123,10 +108,6 @@ void dhcp_packet(time_t now)
     struct cmsghdr align; /* this ensures alignment */
 #if defined(HAVE_LINUX_NETWORK)
     char control[CMSG_SPACE(sizeof(struct in_pktinfo))];
-#elif defined(HAVE_SOLARIS_NETWORK)
-    char control[CMSG_SPACE(sizeof(unsigned int))];
-#elif defined(HAVE_BSD_NETWORK) 
-    char control[CMSG_SPACE(sizeof(struct sockaddr_dl))];
 #endif
   } control_u;
   
@@ -171,10 +152,10 @@ void dhcp_packet(time_t now)
   msg.msg_namelen = sizeof(dest);
 
   while ((sz = recvmsg(daemon->dhcpfd, &msg, 0)) == -1 && errno == EINTR);
- 
+
   if ((msg.msg_flags & MSG_TRUNC) || sz < (ssize_t)(sizeof(*mess) - sizeof(mess->options)))
     return;
-  
+
 #if defined (HAVE_LINUX_NETWORK)
   if (msg.msg_controllen >= sizeof(struct cmsghdr))
     for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
@@ -184,22 +165,8 @@ void dhcp_packet(time_t now)
 	  if (((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_addr.s_addr != INADDR_BROADCAST)
 	    unicast_dest = 1;
 	}
-
-#elif defined(HAVE_BSD_NETWORK) 
-  if (msg.msg_controllen >= sizeof(struct cmsghdr))
-    for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-      if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-        iface_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
-
-  
-#elif defined(HAVE_SOLARIS_NETWORK) 
-  if (msg.msg_controllen >= sizeof(struct cmsghdr))
-    for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-      if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-	iface_index = *((unsigned int *)CMSG_DATA(cmptr));
-	  
 #endif
-	
+
   if (!indextoname(daemon->dhcpfd, iface_index, ifr.ifr_name))
     return;
 
@@ -320,42 +287,8 @@ void dhcp_packet(time_t now)
       req.arp_flags = ATF_COM;
       ioctl(daemon->dhcpfd, SIOCSARP, &req);
     }
-#elif defined(HAVE_SOLARIS_NETWORK)
-  else if ((ntohs(mess->flags) & 0x8000) || mess->hlen != ETHER_ADDR_LEN || mess->htype != ARPHRD_ETHER)
-    {
-      /* broadcast to 255.255.255.255 (or mac address invalid) */
-      dest.sin_addr.s_addr = INADDR_BROADCAST;
-      dest.sin_port = htons(daemon->dhcp_client_port);
-      /* note that we don't specify the interface here: that's done by the
-	 IP_BOUND_IF sockopt lower down. */
-    }
-  else
-    {
-      /* unicast to unconfigured client. Inject mac address direct into ARP cache. 
-	 Note that this only works for ethernet on solaris, because we use SIOCSARP
-	 and not SIOCSXARP, which would be perfect, except that it returns ENXIO 
-	 mysteriously. Bah. Fall back to broadcast for other net types. */
-      struct arpreq req;
-      dest.sin_addr = mess->yiaddr;
-      dest.sin_port = htons(daemon->dhcp_client_port);
-      *((struct sockaddr_in *)&req.arp_pa) = dest;
-      req.arp_ha.sa_family = AF_UNSPEC;
-      memcpy(req.arp_ha.sa_data, mess->chaddr, mess->hlen);
-      req.arp_flags = ATF_COM;
-      ioctl(daemon->dhcpfd, SIOCSARP, &req);
-    }
-#elif defined(HAVE_BSD_NETWORK)
-  else 
-    {
-      send_via_bpf(mess, iov.iov_len, iface_addr, &ifr);
-      return;
-    }
 #endif
-   
-#ifdef HAVE_SOLARIS_NETWORK
-  setsockopt(daemon->dhcpfd, IPPROTO_IP, IP_BOUND_IF, &iface_index, sizeof(iface_index));
-#endif
-  
+
   while(sendmsg(daemon->dhcpfd, &msg, 0) == -1 && retry_send());
 }
  
