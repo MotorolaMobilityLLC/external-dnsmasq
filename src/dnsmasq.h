@@ -168,7 +168,6 @@ struct event_desc {
 #define OPT_NO_NEG         (1u<<11)
 #define OPT_NODOTS_LOCAL   (1u<<12)
 #define OPT_NOWILD         (1u<<13)
-#define OPT_ETHERS         (1u<<14)
 #define OPT_RESOLV_DOMAIN  (1u<<15)
 #define OPT_NO_FORK        (1u<<16)
 #define OPT_AUTHORITATIVE  (1u<<17)
@@ -457,7 +456,6 @@ struct dhcp_config {
 #define CONFIG_ADDR             32
 #define CONFIG_NETID            64
 #define CONFIG_NOCLID          128
-#define CONFIG_FROM_ETHERS     256    /* entry created by /etc/ethers */
 #define CONFIG_ADDR_HOSTS      512    /* address added by from /etc/hosts */
 #define CONFIG_DECLINED       1024    /* address declined by client */
 #define CONFIG_BANK           2048    /* from dhcp hosts file */
@@ -774,7 +772,6 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				unsigned char *hwaddr, int hw_len, 
 				int hw_type, char *hostname);
 void dhcp_update_configs(struct dhcp_config *configs);
-void dhcp_read_ethers(void);
 void check_dhcp_hosts(int fatal);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 char *strip_hostname(char *hostname);
