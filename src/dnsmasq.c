@@ -855,22 +855,17 @@ static void poll_resolv()
     }
 }       
 
-void clear_cache_and_reload(time_t now)
-{
-  if (daemon->port != 0)
-    cache_reload();
-  
+void clear_cache_and_reload(time_t now) {
+    if (daemon->port != 0) cache_reload();
+
 #ifdef HAVE_DHCP
-  if (daemon->dhcp)
-    {
-      if (daemon->options & OPT_ETHERS)
-	dhcp_read_ethers();
-      reread_dhcp();
-      dhcp_update_configs(daemon->dhcp_conf);
-      check_dhcp_hosts(0);
-      lease_update_from_configs(); 
-      lease_update_file(now); 
-      lease_update_dns();
+    if (daemon->dhcp) {
+        reread_dhcp();
+        dhcp_update_configs(daemon->dhcp_conf);
+        check_dhcp_hosts(0);
+        lease_update_from_configs();
+        lease_update_file(now);
+        lease_update_dns();
     }
 #endif
 }
