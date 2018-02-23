@@ -87,7 +87,7 @@ static const struct myoption opts[] =
     { "help", 0, 0, 'w' },
     { "no-daemon", 0, 0, 'd' },
     { "log-queries", 0, 0, 'q' },
-    { "user", 2, 0, 'u' },
+    { "user", 1, 0, 'u' },
     { "group", 2, 0, 'g' },
     { "resolv-file", 2, 0, 'r' },
     { "mx-host", 1, 0, 'm' },
