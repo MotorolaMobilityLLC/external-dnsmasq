@@ -918,7 +918,7 @@ void check_servers(void)
   daemon->servers = ret;
 }
 
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
 /* #define __ANDROID_DEBUG__ 1 */
 /*
  * Ingests a new list of interfaces and starts to listen on them, adding only the new
