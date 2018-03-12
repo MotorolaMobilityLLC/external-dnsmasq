@@ -72,7 +72,7 @@ static void sig_handler(int sig);
 static void async_event(int pipe, time_t now);
 static void fatal_event(struct event_desc *ev);
 static void poll_resolv(void);
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
 static int set_android_listeners(fd_set *set, int *maxfdp);
 static int check_android_listeners(fd_set *set);
 #endif
@@ -293,7 +293,7 @@ int main (int argc, char **argv)
   
   if (!(daemon->options & OPT_DEBUG))   
     {
-#if !defined(__ANDROID__) || defined(__BRILLO__)
+#ifndef __ANDROID__
       int nullfd;
 #endif
 
@@ -362,7 +362,7 @@ int main (int argc, char **argv)
 	    }
 	}
 
-#if !defined(__ANDROID__) || defined(__BRILLO__)
+#ifndef __ANDROID__
       /* open  stdout etc to /dev/null */
       nullfd = open("/dev/null", O_RDWR);
       dup2(nullfd, STDOUT_FILENO);
@@ -529,7 +529,7 @@ int main (int argc, char **argv)
 	  t.tv_usec = 0;
 	  tp = &t;
 	}
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
       set_android_listeners(&rset, &maxfd);
 #endif
 
@@ -598,7 +598,7 @@ int main (int argc, char **argv)
 	netlink_multicast();
 #endif
 
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
       check_android_listeners(&rset);
 #endif
       
@@ -870,7 +870,7 @@ void clear_cache_and_reload(time_t now) {
 #endif
 }
 
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
 
 static int set_android_listeners(fd_set *set, int *maxfdp) {
     FD_SET(STDIN_FILENO, set);
