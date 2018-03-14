@@ -740,7 +740,7 @@ int local_bind(int fd, union mysockaddr *addr, char *intname, uint32_t mark, int
 int random_sock(int family);
 void pre_allocate_sfds(void);
 int reload_servers(char *fname);
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#ifdef __ANDROID__
 int set_servers(const char *servers);
 void set_interfaces(const char *interfaces);
 #endif
