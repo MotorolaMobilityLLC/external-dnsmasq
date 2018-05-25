@@ -110,6 +110,7 @@ void closeUnwantedFileDescriptors() {
 
         if (fstat(i, &stat_buf) != 0) {
             if (errno == EBADF) continue;
+            if (errno == EACCES) continue;  // Lessen the log spam.
             my_syslog(LOG_ERR, "fstat(%d) error: %d/%s", i, errno, strerror(errno));
         } else {
             my_syslog(LOG_ERR, "Closing inherited file descriptor %d (%u:%u)",
