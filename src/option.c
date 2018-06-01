@@ -1408,10 +1408,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	    
 	    if (parse_addr(AF_INET, arg, &newlist->addr) == 0)
 	      {
-		newlist->addr.in.sin_port = htons(serv_port);	
-#ifdef HAVE_SOCKADDR_SA_LEN
-		newlist->source_addr.in.sin_len = newlist->addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
+		newlist->addr.in.sin_port = htons(serv_port);
 		if (source)
 		  {
 		    newlist->flags |= SERV_HAS_SOURCE;
