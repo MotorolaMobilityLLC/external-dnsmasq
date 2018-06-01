@@ -208,10 +208,7 @@ static void log_write(void)
 		 (ECONNRESET, EDESTADDRREQ are *BSD equivalents) */
 	      
 	      struct sockaddr_un logaddr;
-	      
-#ifdef HAVE_SOCKADDR_SA_LEN
-	      logaddr.sun_len = sizeof(logaddr) - sizeof(logaddr.sun_path) + strlen(_PATH_LOG) + 1; 
-#endif
+
 	      logaddr.sun_family = AF_UNIX;
 	      strncpy(logaddr.sun_path, _PATH_LOG, sizeof(logaddr.sun_path));
 	      
