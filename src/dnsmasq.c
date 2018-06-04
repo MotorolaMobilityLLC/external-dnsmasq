@@ -22,6 +22,10 @@
 #error Should not HAVE_BSD_NETWORK
 #endif
 
+#if defined(HAVE_SOCKADDR_SA_LEN)
+#error Should not HAVE_SOCKADDR_SA_LEN
+#endif
+
 #if defined(HAVE_SOLARIS_NETWORK)
 #error Should not HAVE_SOLARIS_NETWORK
 #endif
@@ -1149,10 +1153,7 @@ int icmp_ping(struct in_addr addr)
   saddr.sin_family = AF_INET;
   saddr.sin_port = 0;
   saddr.sin_addr = addr;
-#ifdef HAVE_SOCKADDR_SA_LEN
-  saddr.sin_len = sizeof(struct sockaddr_in);
-#endif
-  
+
   memset(&packet.icmp, 0, sizeof(packet.icmp));
   packet.icmp.icmp_type = ICMP_ECHO;
   packet.icmp.icmp_id = id;
