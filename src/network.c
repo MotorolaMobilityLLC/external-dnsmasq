@@ -214,13 +214,10 @@ static int iface_allowed_v6(struct in6_addr *local,
 {
   union mysockaddr addr;
   struct in_addr netmask; /* dummy */
-  
+
   netmask.s_addr = 0;
-  
+
   memset(&addr, 0, sizeof(addr));
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in6.sin6_len = sizeof(addr.in6);
-#endif
   addr.in6.sin6_family = AF_INET6;
   addr.in6.sin6_addr = *local;
   addr.in6.sin6_port = htons(daemon->port);
@@ -244,9 +241,6 @@ static int iface_allowed_v4(struct in_addr local, int if_index,
   union mysockaddr addr;
 
   memset(&addr, 0, sizeof(addr));
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in.sin_len = sizeof(addr.in);
-#endif
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr = broadcast; /* warning */
   addr.in.sin_addr = local;
@@ -288,19 +282,16 @@ static int create_ipv6_listener(struct listener **link, int port)
   addr.in6.sin6_family = AF_INET6;
   addr.in6.sin6_addr = in6addr_any;
   addr.in6.sin6_port = htons(port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in6.sin6_len = sizeof(addr.in6);
-#endif
 
   /* No error of the kernel doesn't support IPv6 */
   if ((fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1)
     return (errno == EPROTONOSUPPORT ||
 	    errno == EAFNOSUPPORT ||
 	    errno == EINVAL);
-  
+
   if ((tcpfd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
     return 0;
-      
+
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
@@ -340,9 +331,6 @@ struct listener *create_wildcard_listeners(void)
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr.s_addr = INADDR_ANY;
   addr.in.sin_port = htons(daemon->port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
 
   if (daemon->port != 0)
     {
@@ -675,26 +663,15 @@ int random_sock(int family)
 	    
 	    if (daemon->min_port != 0)
 	      port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
-	    
-	    if (family == AF_INET) 
-	      {
+
+	    if (family == AF_INET) {
 		addr.in.sin_addr.s_addr = INADDR_ANY;
 		addr.in.sin_port = port;
-#ifdef HAVE_SOCKADDR_SA_LEN
-		addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
-	      }
-#ifdef HAVE_IPV6
-	    else
-	      {
-		addr.in6.sin6_addr = in6addr_any; 
+	    } else {
+		addr.in6.sin6_addr = in6addr_any;
 		addr.in6.sin6_port = port;
-#ifdef HAVE_SOCKADDR_SA_LEN
-		addr.in6.sin6_len = sizeof(struct sockaddr_in6);
-#endif
-	      }
-#endif
-	    
+	    }
+
 	    if (bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == 0)
 	      return fd;
 	    
@@ -803,7 +780,7 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname, uint
 void pre_allocate_sfds(void)
 {
   struct server *srv;
-  
+
   if (daemon->query_port != 0)
     {
       union  mysockaddr addr;
@@ -811,22 +788,16 @@ void pre_allocate_sfds(void)
       addr.in.sin_family = AF_INET;
       addr.in.sin_addr.s_addr = INADDR_ANY;
       addr.in.sin_port = htons(daemon->query_port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-      addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
       allocate_sfd(&addr, "", 0);
 #ifdef HAVE_IPV6
       memset(&addr, 0, sizeof(addr));
       addr.in6.sin6_family = AF_INET6;
       addr.in6.sin6_addr = in6addr_any;
       addr.in6.sin6_port = htons(daemon->query_port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-      addr.in6.sin6_len = sizeof(struct sockaddr_in6);
-#endif
       allocate_sfd(&addr, "", 0);
 #endif
     }
-  
+
   for (srv = daemon->servers; srv; srv = srv->next)
     if (!(srv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR)) &&
 	!allocate_sfd(&srv->source_addr, srv->interface, srv->mark) &&
