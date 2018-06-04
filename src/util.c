@@ -271,18 +271,11 @@ int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2)
   return 0;
 }
 
-int sa_len(union mysockaddr *addr)
-{
-#ifdef HAVE_SOCKADDR_SA_LEN
-  return addr->sa.sa_len;
-#else
-#ifdef HAVE_IPV6
-  if (addr->sa.sa_family == AF_INET6)
-    return sizeof(addr->in6);
-  else
-#endif
-    return sizeof(addr->in); 
-#endif
+int sa_len(union mysockaddr *addr) {
+    if (addr->sa.sa_family == AF_INET6)
+        return sizeof(addr->in6);
+    else
+        return sizeof(addr->in);
 }
 
 /* don't use strcasecmp and friends here - they may be messed up by LOCALE */
