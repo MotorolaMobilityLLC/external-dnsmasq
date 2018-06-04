@@ -69,9 +69,6 @@ void dhcp_init(void)
   saddr.sin_family = AF_INET;
   saddr.sin_port = htons(daemon->dhcp_server_port);
   saddr.sin_addr.s_addr = INADDR_ANY;
-#ifdef HAVE_SOCKADDR_SA_LEN
-  saddr.sin_len = sizeof(struct sockaddr_in);
-#endif
 
   if (bind(fd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in)))
     die(_("failed to bind DHCP server socket: %s"), NULL, EC_BADNET);
@@ -231,11 +228,7 @@ void dhcp_packet(time_t now)
   
   /* packet buffer may have moved */
   mess = (struct dhcp_packet *)daemon->dhcp_packet.iov_base;
-  
-#ifdef HAVE_SOCKADDR_SA_LEN
-  dest.sin_len = sizeof(struct sockaddr_in);
-#endif
-     
+
   if (mess->giaddr.s_addr)
     {
       /* Send to BOOTP relay  */
