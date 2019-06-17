@@ -15,6 +15,7 @@
 */
 
 #include "dnsmasq.h"
+#include <errno.h>
 
 static const char SEPARATOR[] = "|";
 
@@ -351,7 +352,7 @@ struct listener* create_wildcard_listeners(void) {
 void create_bound_listener(struct listener** listeners, struct irec* iface) {
     int rc, opt = 1;
 #ifdef HAVE_IPV6
-    static int dad_count = 0;
+    int dad_count = 0;
 #endif
 
     struct listener* new = safe_malloc(sizeof(struct listener));
@@ -363,6 +364,8 @@ void create_bound_listener(struct listener** listeners, struct irec* iface) {
     *listeners = new;
 
     if (daemon->port != 0) {
+        my_syslog(LOG_INFO, "create_bound_listener: creat socket, sa_family = %d", iface->addr.sa.sa_family);
+
         if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
             (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
             setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
@@ -379,7 +382,10 @@ void create_bound_listener(struct listener** listeners, struct irec* iface) {
 #endif
 
         while (1) {
-            if ((rc = bind(new->fd, &iface->addr.sa, sa_len(&iface->addr))) != -1) break;
+            if ((rc = bind(new->fd, &iface->addr.sa, sa_len(&iface->addr))) != -1) {
+                my_syslog(LOG_INFO, "create_bound_listener: bind udpfd success");
+                break;
+            }
 
 #ifdef HAVE_IPV6
             /* An interface may have an IPv6 address which is still undergoing DAD.
@@ -388,6 +394,7 @@ void create_bound_listener(struct listener** listeners, struct irec* iface) {
             /* TODO: What to do here? 20 seconds is way too long. We use optimistic addresses, so
                bind() will only fail if the address has already failed DAD, in which case retrying
                won't help. */
+            my_syslog(LOG_INFO, "create_bound_listener:dad_count = %d, error = %s", dad_count, strerror(errno));
             if (iface->addr.sa.sa_family == AF_INET6 &&
                 (errno == ENODEV || errno == EADDRNOTAVAIL) && dad_count++ < DAD_WAIT) {
                 sleep(1);
@@ -397,17 +404,29 @@ void create_bound_listener(struct listener** listeners, struct irec* iface) {
             break;
         }
 
-        if (rc == -1 || bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1) {
+        if (rc == -1) {
             prettyprint_addr(&iface->addr, daemon->namebuff);
-            die(_("failed to bind listening socket for %s: %s"), daemon->namebuff, EC_BADNET);
+            my_syslog(LOG_INFO, "failed to bind udp socket for addr %s: %s", daemon->namebuff, strerror(errno));
+            //die(_("failed to bind listening socket for %s: %s"), daemon->namebuff, EC_BADNET);
         }
+
+        if (bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
+        {
+            prettyprint_addr(&iface->addr, daemon->namebuff);
+            my_syslog(LOG_INFO, "failed to bind tcp socket for addr %s: %s", daemon->namebuff, strerror(errno));
+        }
+
 
         uint32_t mark = daemon->listen_mark;
         if (mark != 0 && (setsockopt(new->fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1 ||
                           setsockopt(new->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == -1))
             die(_("failed to set SO_MARK on listen socket: %s"), NULL, EC_BADNET);
 
-        if (listen(new->tcpfd, 5) == -1) die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
+        if (listen(new->tcpfd, 5) == -1)
+        {
+           my_syslog(LOG_INFO, _("failed to listen on socket: %s"), NULL, EC_BADNET);
+        }
+        //if (listen(new->tcpfd, 5) == -1) die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
     }
 }
 
