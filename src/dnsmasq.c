@@ -78,6 +78,43 @@ static int set_android_listeners(fd_set* set, int* maxfdp);
 static int check_android_listeners(fd_set* set);
 #endif
 
+#define READ_PIPE 0
+#define WRITE_PIPE 1
+static void get_file_path(int fd, int dir_value)
+{
+    char fd_buf[PATH_MAX] = {0};
+    char file_path[PATH_MAX] = {0};
+    char *dir_string = dir_value ? "write" : "read";
+    snprintf(fd_buf, PATH_MAX, "/dev/fd/%d", fd);
+    if(readlink(fd_buf, file_path, PATH_MAX) > 0)
+        my_syslog(LOG_INFO, _("%spipe %d, pipepath %s\n"), dir_string, fd, file_path);
+    else
+        my_syslog(LOG_INFO, _("%spipe %d, pipe path failed to get\n"), dir_string, fd);
+}
+
+void block_judge(int signo)
+{
+    my_syslog(LOG_INFO, _("EVENT_TERM block in writes\n"));
+    return;
+}
+
+int block_timer_init(void)
+{
+    struct itimerval new;
+    signal(SIGALRM, block_judge);
+
+    new.it_value.tv_sec = 20;
+    new.it_value.tv_usec = 0;
+    new.it_interval.tv_sec = 30;
+    new.it_interval.tv_usec = 0;
+
+    if(setitimer(ITIMER_REAL, &new, NULL) == -1) {
+        my_syslog(LOG_ERR, "setitimer err %d\n", errno);
+        return -1;
+    }
+    return 0;
+}
+
 void setupSignalHandling() {
     struct sigaction sigact;
 
@@ -105,7 +142,7 @@ void closeUnwantedFileDescriptors() {
     for (i = 0; i < kMaxFd; i++) {
         // TODO: Evaluate just skipping STDIN, since netd does not
         // (intentionally) pass in any other file descriptors.
-        if (i == STDOUT_FILENO || i == STDERR_FILENO || i == STDIN_FILENO) {
+        if (i == STDOUT_FILENO || i == STDERR_FILENO || i == STDIN_FILENO || i == 3) {
             continue;
         }
 
@@ -265,6 +302,11 @@ int main(int argc, char** argv) {
 
     piperead = pipefd[0];
     pipewrite = pipefd[1];
+
+    my_syslog(LOG_INFO, _("create pipe: piperead %d, pipewrite %d\n"), piperead, pipewrite);
+    get_file_path(piperead, READ_PIPE);
+    get_file_path(pipewrite, WRITE_PIPE);
+
     /* prime the pipe to load stuff first time. */
     send_event(pipewrite, EVENT_RELOAD, 0);
 
@@ -604,11 +646,12 @@ void send_event(int fd, int event, int data) {
     /* error pipe, debug mode. */
     if (fd == -1)
         fatal_event(&ev);
-    else
+    else {
         /* pipe is non-blocking and struct event_desc is smaller than
-           PIPE_BUF, so this either fails or writes everything */
-        while (write(fd, &ev, sizeof(ev)) == -1 && errno == EINTR)
-            ;
+        PIPE_BUF, so this either fails or writes everything */
+        get_file_path(fd, WRITE_PIPE);
+        while (write(fd, &ev, sizeof(ev)) == -1 && errno == EINTR);
+    }
 }
 
 static void fatal_event(struct event_desc* ev) {
@@ -647,7 +690,7 @@ static void async_event(int pipe, time_t now) {
     pid_t p;
     struct event_desc ev;
     int i;
-
+    get_file_path(pipe, READ_PIPE);
     if (read_write(pipe, (unsigned char*) &ev, sizeof(ev), 1)) switch (ev.event) {
             case EVENT_RELOAD:
                 clear_cache_and_reload(now);
@@ -710,6 +753,8 @@ static void async_event(int pipe, time_t now) {
                 break;
 
             case EVENT_TERM:
+                if (block_timer_init())
+                    my_syslog(LOG_INFO, _("failed to setup timer:\n"));
                 /* Knock all our children on the head. */
                 for (i = 0; i < MAX_PROCS; i++)
                     if (daemon->tcp_pids[i] != 0) kill(daemon->tcp_pids[i], SIGALRM);
