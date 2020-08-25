@@ -18,6 +18,8 @@
 
 static const char SEPARATOR[] = "|";
 
+static int dump_listeners(void);
+
 #ifdef HAVE_LINUX_NETWORK
 
 int indextoname(int fd, int index, char* name) {
@@ -390,6 +392,10 @@ void create_bound_listener(struct listener** listeners, struct irec* iface) {
                won't help. */
             if (iface->addr.sa.sa_family == AF_INET6 &&
                 (errno == ENODEV || errno == EADDRNOTAVAIL) && dad_count++ < DAD_WAIT) {
+                char debug_buff[MAXDNAME];
+                prettyprint_addr(&iface->addr, debug_buff);
+                my_syslog(LOG_DEBUG, _("bind fail for %s, dad_count %d, err %s"),
+                          debug_buff, dad_count, strerror(errno));
                 sleep(1);
                 continue;
             }
@@ -785,7 +791,7 @@ void check_servers(void) {
 }
 
 #ifdef __ANDROID__
-/* #define __ANDROID_DEBUG__ 1 */
+#define __ANDROID_DEBUG__ 1
 /*
  * Ingests a new list of interfaces and starts to listen on them, adding only the new
  * and stopping to listen to any interfaces not on the new list.
@@ -910,6 +916,7 @@ void set_interfaces(const char* interfaces) {
         prev_interfaces = tmp_irec;
     }
 #ifdef __ANDROID_DEBUG__
+    dump_listeners();
     my_syslog(LOG_DEBUG, _("done with setInterfaces"));
 #endif
 }
@@ -1117,4 +1124,19 @@ struct in_addr get_ifaddr(char* intr) {
         ((struct sockaddr_in*) &ifr.ifr_addr)->sin_addr.s_addr = -1;
 
     return ((struct sockaddr_in*) &ifr.ifr_addr)->sin_addr;
+}
+
+static int dump_listeners(void) {
+    char debug_buff[MAXDNAME];
+    struct listener *listener;
+
+    for (listener = daemon->listeners; listener; listener = listener->next)
+    {
+        struct irec *listener_iface = listener->iface;
+        if(listener_iface != NULL && ((&(listener_iface->addr)) != NULL)) {
+            prettyprint_addr(&listener_iface->addr, debug_buff);
+            my_syslog(LOG_DEBUG, _("dump_listeners listener %s"), debug_buff);
+        }
+    }
+    return 0;
 }
