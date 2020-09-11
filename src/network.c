@@ -180,7 +180,7 @@ static int iface_allowed(struct irec** irecp, int if_index, union mysockaddr* ad
 #ifdef HAVE_IPV6
 static int iface_allowed_v6(struct in6_addr* local, int scope, int if_index, void* vparam) {
     union mysockaddr addr;
-    struct in_addr netmask; /* dummy */
+    struct in_addr netmask; /* unused */
 
     netmask.s_addr = 0;
 
