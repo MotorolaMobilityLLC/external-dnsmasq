@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 
 
-#define IN6_IS_ADDR_ULA(a) \
+#define IN6_IS_ADDR_ULA_MASQ(a) \
         ((((__const uint32_t *) (a))[0] & htonl (0xff000000))                 \
          == htonl (0xfd000000))
 

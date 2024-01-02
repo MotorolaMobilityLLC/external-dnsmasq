@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -319,7 +319,7 @@ void my_syslog(int priority, const char *format, ...)
 
   if (echo_stderr) 
     {
-      fprintf(stderr, "dnsmasq%s: ", func);
+      fprintf(stderr, "dnsmasq2.89%s: ", func);
       va_start(ap, format);
       vfprintf(stderr, format, ap);
       va_end(ap);
@@ -343,7 +343,7 @@ void my_syslog(int priority, const char *format, ...)
 	alog_lvl = ANDROID_LOG_DEBUG;
 
       va_start(ap, format);
-      __android_log_vprint(alog_lvl, "dnsmasq", format, ap);
+      __android_log_vprint(alog_lvl, "dnsmasq2.89", format, ap);
       va_end(ap);
 #else
       /* fall-back to syslog if we die during startup or 
@@ -352,7 +352,7 @@ void my_syslog(int priority, const char *format, ...)
 
       if (!isopen)
 	{
-	  openlog("dnsmasq", LOG_PID, log_fac);
+	  openlog("dnsmasq2.89", LOG_PID, log_fac);
 	  isopen = 1;
 	}
       va_start(ap, format);  
@@ -392,7 +392,7 @@ void my_syslog(int priority, const char *format, ...)
       if (!log_stderr || !option_bool(OPT_NO_FORK)) 
 	p += sprintf(p, "%.15s ", ctime(&time_now) + 4);
       
-      p += sprintf(p, "dnsmasq%s[%d]: ", func, (int)pid);
+      p += sprintf(p, "dnsmasq2.89%s[%d]: ", func, (int)pid);
         
       len = p - entry->payload;
       va_start(ap, format);  

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -253,10 +253,9 @@ int lookup_domain(char *domain, int flags, int *lowout, int *highout)
   if (highout)
     *highout = nhigh;
 
-  /* qlen == -1 when we failed to match even an empty query, if there are no default servers. */
-  if (nlow == nhigh || qlen == -1)
+  if (nlow == nhigh)
     return 0;
-  
+
   return 1;
 }
 

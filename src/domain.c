@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,13 +22,12 @@ static int match_domain(struct in_addr addr, struct cond_domain *c);
 static struct cond_domain *search_domain6(struct in6_addr *addr, struct cond_domain *c);
 static int match_domain6(struct in6_addr *addr, struct cond_domain *c);
 
-int is_name_synthetic(int flags, char *name, union all_addr *addrp)
+int is_name_synthetic(int flags, char *name, union all_addr *addr)
 {
   char *p;
   struct cond_domain *c = NULL;
   int prot = (flags & F_IPV6) ? AF_INET6 : AF_INET;
-  union all_addr addr;
-  
+
   for (c = daemon->synth_domains; c; c = c->next)
     {
       int found = 0;
@@ -75,7 +74,7 @@ int is_name_synthetic(int flags, char *name, union all_addr *addrp)
 		   if (!c->is6 &&
 		      index <= ntohl(c->end.s_addr) - ntohl(c->start.s_addr))
 		    {
-		      addr.addr4.s_addr = htonl(ntohl(c->start.s_addr) + index);
+		      addr->addr4.s_addr = htonl(ntohl(c->start.s_addr) + index);
 		      found = 1;
 		    }
 		} 
@@ -87,8 +86,8 @@ int is_name_synthetic(int flags, char *name, union all_addr *addrp)
 		      index <= addr6part(&c->end6) - addr6part(&c->start6))
 		    {
 		      u64 start = addr6part(&c->start6);
-		      addr.addr6 = c->start6;
-		      setaddr6part(&addr.addr6, start + index);
+		      addr->addr6 = c->start6;
+		      setaddr6part(&addr->addr6, start + index);
 		      found = 1;
 		    }
 		}
@@ -136,8 +135,8 @@ int is_name_synthetic(int flags, char *name, union all_addr *addrp)
 		  }
 	    }
 	  
-	  if (hostname_isequal(c->domain, p+1) && inet_pton(prot, tail, &addr))
-	    found = (prot == AF_INET) ? match_domain(addr.addr4, c) : match_domain6(&addr.addr6, c);
+	  if (hostname_isequal(c->domain, p+1) && inet_pton(prot, tail, addr))
+	    found = (prot == AF_INET) ? match_domain(addr->addr4, c) : match_domain6(&addr->addr6, c);
 	}
       
       /* restore name */
@@ -149,12 +148,7 @@ int is_name_synthetic(int flags, char *name, union all_addr *addrp)
       
       
       if (found)
-	{
-	  if (addrp)
-	    *addrp = addr;
-	  
-	  return 1;
-	}
+	return 1;
     }
   
   return 0;

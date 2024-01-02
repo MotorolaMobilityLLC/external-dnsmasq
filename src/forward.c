@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -519,7 +519,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		PUTSHORT(srv->edns_pktsz, pheader);
 	    }
 #endif
-	  
+
 	  if (retry_send(sendto(fd, (char *)header, plen, 0,
 				&srv->addr.sa,
 				sa_len(&srv->addr))))
@@ -721,7 +721,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  if (added_pheader)
 	    {
 	      /* client didn't send EDNS0, we added one, strip it off before returning answer. */
-	      rrfilter(header, &n, RRFILTER_EDNS0);
+	      n = rrfilter(header, n, RRFILTER_EDNS0);
 	      pheader = NULL;
 	    }
 	  else
@@ -811,6 +811,16 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	    }
 	}
 
+      /* Before extract_addresses() */
+      if (rcode == NOERROR)
+	{
+	  if (option_bool(OPT_FILTER_A))
+	    n = rrfilter(header, n, RRFILTER_A);
+
+	  if (option_bool(OPT_FILTER_AAAA))
+	    n = rrfilter(header, n, RRFILTER_AAAA);
+	}
+
       switch (extract_addresses(header, n, daemon->namebuff, now, ipsets, nftsets, is_sign, check_rebind, no_cache, cache_secure, &doctored))
 	{
 	case 1:
@@ -829,9 +839,6 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  break;
 	}
 
-      if (rcode == NOERROR && rrfilter(header, &n, RRFILTER_CONF) > 0) 
-	ede = EDE_FILTERED;
-      
       if (doctored)
 	cache_secure = 0;
     }
@@ -853,7 +860,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
       
       /* If the requestor didn't set the DO bit, don't return DNSSEC info. */
       if (!do_bit)
-	rrfilter(header, &n, RRFILTER_DNSSEC);
+	n = rrfilter(header, n, RRFILTER_DNSSEC);
     }
 #endif
 
@@ -894,24 +901,17 @@ static void dnssec_validate(struct frec *forward, struct dns_header *header,
   if (forward->blocking_query)
     return;
   
+  /* Truncated answer can't be validated.
+     If this is an answer to a DNSSEC-generated query, we still
+     need to get the client to retry over TCP, so return
+     an answer with the TC bit set, even if the actual answer fits.
+  */
+  if (header->hb3 & HB3_TC)
+    status = STAT_TRUNCATED;
+
   /* If all replies to a query are REFUSED, give up. */
   if (RCODE(header) == REFUSED)
     status = STAT_ABANDONED;
-  else if (header->hb3 & HB3_TC)
-    {
-      /* Truncated answer can't be validated.
-	 If this is an answer to a DNSSEC-generated query, we still
-	 need to get the client to retry over TCP, so return
-	 an answer with the TC bit set, even if the actual answer fits.
-      */
-      status = STAT_TRUNCATED;
-      if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
-	{
-	  unsigned char *p = (unsigned char *)(header+1);
-	  if  (extract_name(header, plen, &p, daemon->namebuff, 0, 4) == 1)
-	    log_query(F_UPSTREAM | F_NOEXTRA, daemon->namebuff, NULL, "truncated", (forward->flags & FREC_DNSKEY_QUERY) ? T_DNSKEY : T_DS);
-	}
-    }
   
   /* As soon as anything returns BOGUS, we stop and unwind, to do otherwise
      would invite infinite loops, since the answers to DNSKEY and DS queries
@@ -1300,10 +1300,7 @@ static void return_reply(time_t now, struct frec *forward, struct dns_header *he
       no_cache_dnssec = 0;
       
       if (STAT_ISEQUAL(status, STAT_TRUNCATED))
-	{
-	  header->hb3 |= HB3_TC;
-	  log_query(F_SECSTAT, "result", NULL, "TRUNCATED", 0);
-	}
+	header->hb3 |= HB3_TC;
       else
 	{
 	  char *result, *domain = "result";
@@ -1329,7 +1326,7 @@ static void return_reply(time_t now, struct frec *forward, struct dns_header *he
 	      if (extract_request(header, n, daemon->namebuff, NULL))
 		domain = daemon->namebuff;
 	    }
-      
+	  
 	  log_query(F_SECSTAT, domain, &a, result, 0);
 	}
     }
@@ -1811,38 +1808,27 @@ void receive_query(struct listener *listen, time_t now)
 #endif
   else
     {
-      int stale, filtered;
+      int stale;
       int ad_reqd = do_bit;
+      u16 hb3 = header->hb3, hb4 = header->hb4;
       int fd = listen->fd;
-      struct blockdata *saved_question = blockdata_alloc((char *) header, (size_t)n);
       
       /* RFC 6840 5.7 */
       if (header->hb4 & HB4_AD)
 	ad_reqd = 1;
-
+      
       m = answer_request(header, ((char *) header) + udp_size, (size_t)n, 
-			 dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader, &stale, &filtered);
+			 dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader, &stale);
       
       if (m >= 1)
 	{
-	  if (have_pseudoheader)
+	  if (stale && have_pseudoheader)
 	    {
-	      int ede = EDE_UNSET;
-
-	      if (filtered)
-		ede = EDE_FILTERED;
-	      else if (stale)
-		ede = EDE_STALE;
-
-	      if (ede != EDE_UNSET)
-		{
-		  u16 swap = htons(ede);
-		  
-		  m = add_pseudoheader(header,  m,  ((unsigned char *) header) + udp_size, daemon->edns_pktsz,
-				       EDNS0_OPTION_EDE, (unsigned char *)&swap, 2, do_bit, 0);
-		}
+	      u16 swap = htons(EDE_STALE);
+	      
+	      m = add_pseudoheader(header,  m,  ((unsigned char *) header) + udp_size, daemon->edns_pktsz,
+				   EDNS0_OPTION_EDE, (unsigned char *)&swap, 2, do_bit, 0);
 	    }
-	  
 #ifdef HAVE_DUMPFILE
 	  dump_packet_udp(DUMP_REPLY, daemon->packet, m, NULL, &source_addr, listen->fd);
 #endif
@@ -1857,31 +1843,34 @@ void receive_query(struct listener *listen, time_t now)
 	    daemon->metrics[METRIC_DNS_STALE_ANSWERED]++;
 	}
       
-      if (stale)
+      if (m == 0 || stale)
 	{
-	  /* We answered with stale cache data, so forward the query anyway to
-	     refresh that. */
-	  m = 0;
-	  
-	  /* We've already answered the client, so don't send it the answer 
-	     when it comes back. */
-	  fd = -1;
-	}
-      
-      if (saved_question)
-	{
-	  if (m == 0)
+	  if (m != 0)
 	    {
-	      blockdata_retrieve(saved_question, (size_t)n, header);
+	      size_t plen;
 	      
-	      if (forward_query(fd, &source_addr, &dst_addr, if_index,
-				header, (size_t)n,  ((char *) header) + udp_size, now, NULL, ad_reqd, do_bit, 0))
-		daemon->metrics[METRIC_DNS_QUERIES_FORWARDED]++;
-	      else
-		daemon->metrics[METRIC_DNS_LOCAL_ANSWERED]++;
+	      /* We answered with stale cache data, so forward the query anyway to
+		 refresh that. Restore the query from the answer packet. */
+	      pheader = find_pseudoheader(header, (size_t)m, &plen, NULL, NULL, NULL);
+	      
+	      header->hb3 = hb3;
+	      header->hb4 = hb4;
+	      header->ancount = htons(0);
+	      header->nscount = htons(0);
+	      header->arcount = htons(0);
+
+	      m = resize_packet(header, m, pheader, plen);
+
+	      /* We've already answered the client, so don't send it the answer 
+		 when it comes back. */
+	      fd = -1;
 	    }
 	  
-	  blockdata_free(saved_question);
+	  if (forward_query(fd, &source_addr, &dst_addr, if_index,
+			    header, (size_t)n,  ((char *) header) + udp_size, now, NULL, ad_reqd, do_bit, 0))
+	    daemon->metrics[METRIC_DNS_QUERIES_FORWARDED]++;
+	  else
+	    daemon->metrics[METRIC_DNS_LOCAL_ANSWERED]++;
 	}
     }
 }
@@ -1909,7 +1898,7 @@ static ssize_t tcp_talk(int first, int last, int start, unsigned char *packet,  
   
   while (1) 
     {
-      int data_sent = 0, timedout = 0;
+      int data_sent = 0;
       struct server *serv;
       
       if (firstsendto == -1)
@@ -1947,27 +1936,15 @@ static ssize_t tcp_talk(int first, int last, int start, unsigned char *packet,  
 	      serv->tcpfd = -1;
 	      continue;
 	    }
-
-#ifdef TCP_SYNCNT
-	  /* TCP connections by default take ages to time out. 
-	     At least on Linux, we can reduce that to only two attempts
-	     to get a reply. For DNS, that's more sensible. */
-	  mark = 2;
-	  setsockopt(serv->tcpfd, IPPROTO_TCP, TCP_SYNCNT, &mark, sizeof(unsigned int));
-#endif
 	  
 #ifdef MSG_FASTOPEN
 	  server_send(serv, serv->tcpfd, packet, qsize + sizeof(u16), MSG_FASTOPEN);
 	  
 	  if (errno == 0)
 	    data_sent = 1;
-	  else if (errno == ETIMEDOUT || errno == EHOSTUNREACH)
-	    timedout = 1;
 #endif
 	  
-	  /* If fastopen failed due to lack of reply, then there's no point in
-	     trying again in non-FASTOPEN mode. */
-	  if (timedout || (!data_sent && connect(serv->tcpfd, &serv->addr.sa, sa_len(&serv->addr)) == -1))
+	  if (!data_sent && connect(serv->tcpfd, &serv->addr.sa, sa_len(&serv->addr)) == -1)
 	    {
 	      close(serv->tcpfd);
 	      serv->tcpfd = -1;
@@ -2068,7 +2045,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
       daemon->log_display_id = ++daemon->log_id;
       
       log_query_mysockaddr(F_NOEXTRA | F_DNSSEC | F_SERVER, keyname, &server->addr,
-			    STAT_ISEQUAL(new_status, STAT_NEED_KEY) ? "dnssec-query[DNSKEY]" : "dnssec-query[DS]", 0);
+			    STAT_ISEQUAL(status, STAT_NEED_KEY) ? "dnssec-query[DNSKEY]" : "dnssec-query[DS]", 0);
             
       new_status = tcp_key_recurse(now, new_status, new_header, m, class, name, keyname, server, have_mark, mark, keycount);
 
@@ -2093,7 +2070,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
 unsigned char *tcp_request(int confd, time_t now,
 			   union mysockaddr *local_addr, struct in_addr netmask, int auth_dns)
 {
-  size_t size = 0, saved_size = 0;
+  size_t size = 0;
   int norebind;
 #ifdef HAVE_CONNTRACK
   int is_single_query = 0, allowed = 1;
@@ -2104,7 +2081,6 @@ unsigned char *tcp_request(int confd, time_t now,
   int checking_disabled, do_bit, added_pheader = 0, have_pseudoheader = 0;
   int cacheable, no_cache_dnssec = 0, cache_secure = 0, bogusanswer = 0;
   size_t m;
-  struct blockdata *saved_question = NULL;
   unsigned short qtype;
   unsigned int gotname;
   /* Max TCP packet + slop + size */
@@ -2122,8 +2098,9 @@ unsigned char *tcp_request(int confd, time_t now,
   unsigned char *pheader;
   unsigned int mark = 0;
   int have_mark = 0;
-  int first, last, filtered, stale, do_stale = 0;
+  int first, last, stale, do_stale = 0;
   unsigned int flags = 0;
+  u16 hb3, hb4;
     
   if (!packet || getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) == -1)
     return packet;
@@ -2178,15 +2155,35 @@ unsigned char *tcp_request(int confd, time_t now,
     {
       int ede = EDE_UNSET;
 
-      if (!do_stale)
+      if (query_count == TCP_MAX_QUERIES)
+	return packet;
+
+      if (do_stale)
 	{
-	  if (query_count == TCP_MAX_QUERIES)
-	    break;
+	  size_t plen;
+
+	  /* We answered the last query with stale data. Now try and get fresh data.
+	     Restore query from answer. */
+	  pheader = find_pseudoheader(header, m, &plen, NULL, NULL, NULL);
 	  
+	  header->hb3 = hb3;
+	  header->hb4 = hb4;
+	  header->ancount = htons(0);
+	  header->nscount = htons(0);
+	  header->arcount = htons(0);
+	  
+	  size = resize_packet(header, m, pheader, plen);
+	}
+      else
+	{
 	  if (!read_write(confd, &c1, 1, 1) || !read_write(confd, &c2, 1, 1) ||
 	      !(size = c1 << 8 | c2) ||
 	      !read_write(confd, payload, size, 1))
-	    break;
+	    return packet;
+	  
+	  /* for stale-answer processing. */
+	  hb3 = header->hb3;
+	  hb4 = header->hb4;
 	}
       
       if (size < (int)sizeof(struct dns_header))
@@ -2293,28 +2290,18 @@ unsigned char *tcp_request(int confd, time_t now,
 	   if (do_stale)
 	     m = 0;
 	   else
-	     {
-	       if (saved_question)
-		 blockdata_free(saved_question);
-	       
-	       saved_question = blockdata_alloc((char *) header, (size_t)size);
-	       saved_size = size;
-	       
-	       /* m > 0 if answered from cache */
-	       m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
-				  dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader, &stale, &filtered);
-	     }
+	     /* m > 0 if answered from cache */
+	     m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
+				dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader, &stale);
+	   
 	  /* Do this by steam now we're not in the select() loop */
 	  check_log_writer(1); 
 	  
-	  if (m == 0 && saved_question)
+	  if (m == 0)
 	    {
 	      struct server *master;
 	      int start;
 
-	      blockdata_retrieve(saved_question, (size_t)saved_size, header);
-	      size = saved_size;
-	      
 	      if (lookup_domain(daemon->namebuff, gotname, &first, &last))
 		flags = is_local_answer(now, first, daemon->namebuff);
 	      else
@@ -2444,23 +2431,13 @@ unsigned char *tcp_request(int confd, time_t now,
 		m = add_pseudoheader(header, m, ((unsigned char *) header) + 65536, daemon->edns_pktsz, 0, NULL, 0, do_bit, 0);
 	    }
 	}
-      else if (have_pseudoheader)
-	{
-	  ede = EDE_UNSET;
-	  
-	  if (filtered)
-	    ede = EDE_FILTERED;
-	  else if (stale)
-	    ede = EDE_STALE;
-	  
-	  if (ede != EDE_UNSET)
-	    {
-	      u16 swap = htons((u16)ede);
-	      
-	      m = add_pseudoheader(header, m, ((unsigned char *) header) + 65536, daemon->edns_pktsz, EDNS0_OPTION_EDE, (unsigned char *)&swap, 2, do_bit, 0);
-	    }
-	}
-	  
+      else if (stale)
+	 {
+	   u16 swap = htons((u16)EDE_STALE);
+	   
+	   m = add_pseudoheader(header, m, ((unsigned char *) header) + 65536, daemon->edns_pktsz, EDNS0_OPTION_EDE, (unsigned char *)&swap, 2, do_bit, 0);
+	 }
+      
       check_log_writer(1);
       
       *length = htons(m);
@@ -2476,7 +2453,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	break;
       
       /* If we answered with stale data, this process will now try and get fresh data into
-	 the cache and cannot therefore accept new queries. Close the incoming
+	 the cache then and cannot therefore accept new queries. Close the incoming
 	 connection to signal that to the client. Then set do_stale and loop round
 	 once more to try and get fresh data, after which we exit. */
       if (stale)
@@ -2494,9 +2471,6 @@ unsigned char *tcp_request(int confd, time_t now,
       close(confd);
     }
 
-  if (saved_question)
-    blockdata_free(saved_question);
-  
   return packet;
 }
 
@@ -2694,7 +2668,6 @@ int allocate_rfd(struct randfd_list **fdlp, struct server *serv)
 	daemon->rfl_spare = rfl_poll->next;
       else
 	rfl_poll = whine_malloc(sizeof(struct randfd_list));
-      
       if (!rfl_poll ||
 	  !(rfd = whine_malloc(sizeof(struct randfd))) ||
 	  (fd = random_sock(serv)) == -1)
@@ -2724,7 +2697,28 @@ int allocate_rfd(struct randfd_list **fdlp, struct server *serv)
       rfl_poll->next = daemon->rfl_poll;
       daemon->rfl_poll = rfl_poll;
     }
-  
+
+#ifdef ANDROID
+    // Mark the socket so it goes out on the correct network. Note
+    // that we never clear the mark, only re-set it the next time we
+    // allocate a new random fd. This is because we buffer DNS
+    // queries (in daemon->srv_save, daemon->packet_len) and socket
+    // file descriptors (in daemon->rfd_save) with the expectation of
+    // being able to use them again.
+    //
+    // Server fds are marked separately in allocate_sfd.  
+  if (fd > 0 && serv->mark)
+      if (setsockopt(fd, SOL_SOCKET, SO_MARK, &serv->mark, sizeof(serv->mark)) == -1)
+      {
+	  close(rfd->fd);
+	  rfd->refcount = 0;
+          free(rfd);
+	  my_syslog(LOG_ERR, _("failed to set socket mark 0x%x, %s"),
+		    serv->mark, strerror(errno));
+          return -1;            
+      }
+#endif
+
   rfl->rfd = rfd;
   rfl->next = *fdlp;
   *fdlp = rfl;

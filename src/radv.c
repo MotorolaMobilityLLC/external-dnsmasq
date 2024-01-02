@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -186,8 +186,7 @@ void icmp6_packet(time_t now)
     return;
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (tmp->flags & INAME_6) &&
-	wildcard_match(tmp->name, interface))
+    if (tmp->name && wildcard_match(tmp->name, interface))
       return;
  
   if (packet[1] != 0)
@@ -711,7 +710,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  if (!constructed || preferred > time)
 	    preferred = time;
 	  
-	  if (IN6_IS_ADDR_ULA(local))
+	  if (IN6_IS_ADDR_ULA_MASQ(local))
 	    {
 	      if (preferred > param->ula_pref_time)
 		{
@@ -836,8 +835,7 @@ time_t periodic_ra(time_t now)
 	{
 	  struct iname *tmp;
 	  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-	    if (tmp->name && (tmp->flags & INAME_6) &&
-		wildcard_match(tmp->name, param.name))
+	    if (tmp->name && wildcard_match(tmp->name, param.name))
 	      break;
 	  if (!tmp)
             {
@@ -936,8 +934,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
     return 1;
 
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (tmp->flags & INAME_6) &&
-	wildcard_match(tmp->name, param->name))
+    if (tmp->name && wildcard_match(tmp->name, param->name))
       return 1;
 
   for (context = daemon->dhcp6; context; context = context->next)

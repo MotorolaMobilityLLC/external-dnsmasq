@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2023 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2022 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@ const char * metric_names[] = {
     "leases_pruned_4",
     "leases_allocated_6",
     "leases_pruned_6",
-    "tcp_connections",
 };
 
 const char* get_metric_name(int i) {

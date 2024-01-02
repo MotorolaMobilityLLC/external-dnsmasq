@@ -1,0 +1,111 @@
+package {
+    default_applicable_licenses: ["external_dnsmasq_sprd_src_license"],
+}
+
+// Added automatically by a large-scale-change that took the approach of
+// 'apply every license found to every target'. While this makes sure we respect
+// every license restriction, it may not be entirely correct.
+//
+// e.g. GPL in an MIT project might only apply to the contrib/ directory.
+//
+// Please consider splitting the single license below into multiple licenses,
+// taking care not to lose any license_kind information, and overriding the
+// default license using the 'licenses: [...]' property on targets as needed.
+//
+// For unused files, consider creating a 'fileGroup' with "//visibility:private"
+// to attach the license to, and including a comment whether the files may be
+// used in the current project.
+// See: http://go/android-license-faq
+license {
+    name: "external_dnsmasq_sprd_src_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-GPL",
+        "SPDX-license-identifier-GPL-2.0",
+        "SPDX-license-identifier-LGPL",
+        "SPDX-license-identifier-MIT",
+        "legacy_unencumbered",
+    ],
+    license_text: [
+        "NOTICE",
+    ],
+}
+
+cc_binary {
+    name: "dnsmasq_sprd",
+    srcs: [
+        "arp.c",
+        "auth.c",
+        "blockdata.c",
+        "bpf.c",
+        "cache.c",
+        "conntrack.c",
+        "crypto.c",
+        "dbus.c",
+        "dhcp6.c",
+        "dhcp.c",
+        "dhcp-common.c",
+        "dnsmasq.c",
+        "dnssec.c",
+        "domain.c",
+        "domain-match.c",
+        "dump.c",
+        "edns0.c",
+        "forward.c",
+        "hash-questions.c",
+        "helper.c",
+        "inotify.c",
+        "ipset.c",
+        "lease.c",
+        "log.c",
+        "loop.c",
+        "metrics.c",
+        "netlink.c",
+        "network.c",
+        "nftset.c",
+        "option.c",
+        "outpacket.c",
+        "pattern.c",
+        "poll.c",
+        "radv.c",
+        "rfc1035.c",
+        "rfc2131.c",
+        "rfc3315.c",
+        "rrfilter.c",
+        "slaac.c",
+        "tables.c",
+        "tftp.c",
+        "ubus.c",
+        "util.c",
+    ],
+
+    cflags: [
+        "-O2",
+        "-g",
+        "-W",
+        "-Wall",
+        "-D__ANDROID__",
+        "-DIPV6",
+        "-DNO_SCRIPT",
+        "-D_BSD_SOURCE",
+        "-Wno-unused-variable",
+        "-Wno-unused-parameter",
+        "-Werror",
+        "-Wno-pointer-arith",
+        "-Wfatal-errors",
+        "-Wno-sign-compare",
+    ],
+    system_shared_libs: ["libc"],
+    shared_libs: [
+        "libcutils",
+        "liblog",
+    ],
+    system_ext_specific: true,
+}
+
+prebuilt_etc {
+    name: "dnsmasq.conf",
+    src: "dnsmasq.conf",
+    system_ext_specific: true, 
+}
